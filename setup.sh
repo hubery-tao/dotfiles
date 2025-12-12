@@ -12,7 +12,7 @@ for script in $curr_dir/.bashrc.d/*; do
     name=$(basename $script)
     ln -sf $curr_dir/.bashrc.d/$name $HOME/.bashrc.d/$name
 done
-cat <<EOF >> $HOME/.bashrc
+cat <<'EOF' >> $HOME/.bashrc
 
 if [ -d ~/.bashrc.d ]; then
     for file in ~/.bashrc.d/*.sh; do

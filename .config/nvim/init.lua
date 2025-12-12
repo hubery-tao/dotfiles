@@ -1,9 +1,3 @@
-require("config.lazy")
-
-vim.cmd("syntax on")
-vim.cmd("filetype on")
-vim.cmd("colorscheme torte")
-
 vim.opt.swapfile = false
 vim.opt.number = true
 vim.opt.expandtab = true
@@ -17,5 +11,13 @@ vim.opt.showmatch = true
 vim.opt.splitbelow = true
 vim.opt.splitright = true
 vim.opt.laststatus = 2
+vim.opt.termguicolors = true
+vim.opt.winbar = ' %f'
+vim.opt.cursorline = true
 
+vim.cmd("syntax on")
+vim.cmd("filetype on")
+vim.cmd("colorscheme murphy")
+
+require("config.lazy")
 require("keymaps")
