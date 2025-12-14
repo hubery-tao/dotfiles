@@ -14,6 +14,9 @@ vim.opt.laststatus = 2
 vim.opt.termguicolors = true
 vim.opt.winbar = ' %f'
 vim.opt.cursorline = true
+vim.opt.clipboard = "unnamedplus"
+
+vim.g.clipboard = "osc52"
 
 vim.cmd("syntax on")
 vim.cmd("filetype on")
