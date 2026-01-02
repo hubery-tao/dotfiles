@@ -1,6 +1,6 @@
-vim.keymap.set({'n', 'v'}, '<Space>', '<Nop>', { silent = true })
+vim.keymap.set({'n', 'v'}, '<Space>', '<Nop>')
 vim.g.mapleader = " "
-
+vim.g.maplocalleader = ","
 
 vim.keymap.set("n", "<esc><esc>", "<cmd>noh<cr>")
 
