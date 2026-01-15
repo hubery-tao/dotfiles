@@ -1,10 +1,10 @@
 #!/bin/bash
 
-uname_out=$(uname)
-if [[ $uname_out == "Darwin" ]]; then
+system=$(uname)
+if [[ $system == "Darwin" ]]; then
 	shellrc=".zshrc"
 	shellrcd=".zshrc.d"
-elif [[ $uname_out == "Linux" ]]; then
+elif [[ $system == "Linux" ]]; then
 	shellrc=".bashrc"
 	shellrcd=".bashrc.d"
 else
@@ -32,6 +32,14 @@ if [ -d ~/$shellrcd ]; then
     done
 fi
 EOF
+
+if [[ $system == "Darwin" ]]; then
+    cat <<EOF >> $HOME/$shellrc
+
+autoload -Uz select-word-style
+select-word-style bash
+EOF
+fi
 
 rm -rf $HOME/.config/nvim
 ln -sf $curr_dir/.config/nvim $HOME/.config/nvim
