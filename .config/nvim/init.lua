@@ -19,7 +19,6 @@ vim.g.clipboard = "osc52"
 
 vim.cmd("syntax on")
 vim.cmd("filetype on")
-vim.cmd("colorscheme murphy")
 
 require("config.lazy")
 require("keymaps")
