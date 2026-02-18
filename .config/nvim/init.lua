@@ -20,5 +20,8 @@ vim.g.clipboard = "osc52"
 vim.cmd("syntax on")
 vim.cmd("filetype on")
 
+vim.g.mapleader = " "
+vim.g.maplocalleader = ","
+
 require("config.lazy")
 require("keymaps")
