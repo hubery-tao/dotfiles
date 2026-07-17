@@ -29,8 +29,10 @@ return {
         vim.keymap.set('n', '<leader>fh', builtin.help_tags, {
             desc = 'Telescope help tags',
         })
-        vim.keymap.set('n', '<leader>fr', builtin.resume, {
-            desc = 'Telescope resume',
-        })
+        vim.keymap.set('n', '<leader>fr', function()
+            builtin.resume({
+                initial_mode = 'normal',
+            })
+        end, { desc = 'Telescope resume' })
     end,
 }
