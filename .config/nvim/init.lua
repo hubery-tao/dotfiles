@@ -15,6 +15,8 @@ vim.opt.termguicolors = true
 vim.opt.winbar = ' %f'
 vim.opt.cursorline = true
 vim.opt.autoread = true
+vim.opt.timeoutlen = 500
+vim.opt.ttimeoutlen = 50
 
 vim.g.clipboard = "osc52"
 
