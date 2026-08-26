@@ -10,6 +10,11 @@ alias lla='ls -Alh --color=auto'
 
 alias gss='git status -s'
 alias gst='git status'
+alias gaa='git add -A'
+alias gcm='git commit -m'
+alias gca='git commit --amend'
+alias gcane='git commit --amend --no-edit'
+alias gfe='git fetch'
 
 alias tn='tmux new -s'
 alias ta='tmux attach -t'
