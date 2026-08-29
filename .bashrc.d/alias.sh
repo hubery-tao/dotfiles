@@ -1,12 +1,14 @@
 if [[ "$(uname)" == "Darwin" ]]; then
     alias ls='ls -G'
+    alias ll='command ls -lhG'
+    alias la='command ls -AG'
+    alias lla='command ls -AlhG'
 else
     alias ls='ls --color=auto'
+    alias ll='command ls -lh --color=auto'
+    alias la='command ls -A --color=auto'
+    alias lla='command ls -Alh --color=auto'
 fi
-
-alias ll='ls -lh --color=auto'
-alias la='ls -A'
-alias lla='ls -Alh --color=auto'
 
 alias gss='git status -s'
 alias gst='git status'

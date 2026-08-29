@@ -12,7 +12,6 @@ vim.opt.splitbelow = true
 vim.opt.splitright = true
 vim.opt.laststatus = 2
 vim.opt.termguicolors = true
-vim.opt.winbar = ' %f'
 vim.opt.cursorline = true
 vim.opt.autoread = true
 vim.opt.timeoutlen = 500

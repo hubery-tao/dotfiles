@@ -9,12 +9,18 @@ return {
         vim.keymap.set(
             "i",
             "<C-j>",
-            'copilot#Accept("\\<CR>")'
+            'copilot#Accept("\\<CR>")',
+            {
+                expr = true,
+                replace_keycodes = false,
+                desc = "Accept Copilot suggestion",
+            }
         )
         vim.keymap.set(
             "i",
             "<C-l>",
-            "<Plug>(copilot-accept-line)"
+            "<Plug>(copilot-accept-line)",
+            { desc = "Accept Copilot suggestion line" }
         )
     end,
 }
