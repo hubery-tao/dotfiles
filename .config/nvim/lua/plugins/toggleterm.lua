@@ -15,7 +15,8 @@ return {
         config = function(_, opts)
             require("toggleterm").setup(opts)
 
-            local Terminal = require("toggleterm.terminal").Terminal
+            local terminal = require("toggleterm.terminal")
+            local Terminal = terminal.Terminal
             local terms = {}
             -- nvim-tree replaces a directory argument with NvimTree_1 during
             -- VimEnter, so remember this before that happens.
@@ -27,7 +28,7 @@ return {
             -- registering Codex there makes the right-hand Codex pane and the
             -- horizontal shell pane resize each other whenever either reopens.
             local function codex_width()
-                return math.floor(vim.o.columns * 0.35)
+                return math.floor(vim.o.columns * 0.30)
             end
 
             local codex = {
@@ -101,6 +102,167 @@ return {
                     end
                 end
             end
+
+            local function terminal_cwd(bufnr)
+                local job_id = vim.b[bufnr].terminal_job_id
+                if job_id then
+                    local pid = vim.fn.jobpid(job_id)
+                    if pid and pid > 0 then
+                        local cwd = vim.uv.fs_realpath("/proc/" .. pid .. "/cwd")
+                        if cwd then
+                            return cwd
+                        end
+                    end
+                end
+
+                return vim.fn.getcwd()
+            end
+
+            local function pick_editor_window(editor_windows)
+                local labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+                if #editor_windows > #labels then
+                    vim.notify("Too many editor windows to label", vim.log.levels.ERROR)
+                    return
+                end
+
+                table.sort(editor_windows, function(left, right)
+                    local left_position = vim.api.nvim_win_get_position(left)
+                    local right_position = vim.api.nvim_win_get_position(right)
+                    if left_position[1] == right_position[1] then
+                        return left_position[2] < right_position[2]
+                    end
+                    return left_position[1] < right_position[1]
+                end)
+
+                local saved = {}
+                local window_by_label = {}
+                local laststatus = vim.o.laststatus
+                vim.o.laststatus = 2
+
+                for index, win in ipairs(editor_windows) do
+                    local label = labels:sub(index, index)
+                    saved[win] = {
+                        statusline = vim.api.nvim_get_option_value("statusline", { win = win }),
+                        winhl = vim.api.nvim_get_option_value("winhl", { win = win }),
+                    }
+                    window_by_label[label] = win
+
+                    vim.api.nvim_set_option_value("statusline", "%= " .. label .. " %=", {
+                        win = win,
+                    })
+                    vim.api.nvim_set_option_value(
+                        "winhl",
+                        "StatusLine:NvimTreeWindowPicker,StatusLineNC:NvimTreeWindowPicker",
+                        { win = win }
+                    )
+                end
+
+                vim.cmd("redraw")
+                vim.api.nvim_echo({ { "Pick editor window: ", "Question" } }, false, {})
+                local ok, input = pcall(vim.fn.getcharstr)
+                if vim.o.cmdheight == 0 then
+                    vim.api.nvim_echo({ { "" } }, false, {})
+                else
+                    vim.cmd("normal! :")
+                end
+
+                for win, options in pairs(saved) do
+                    if vim.api.nvim_win_is_valid(win) then
+                        vim.api.nvim_set_option_value("statusline", options.statusline, { win = win })
+                        vim.api.nvim_set_option_value("winhl", options.winhl, { win = win })
+                    end
+                end
+                vim.o.laststatus = laststatus
+                vim.cmd("redraw")
+
+                if not ok then
+                    return
+                end
+                return window_by_label[input:upper()]
+            end
+
+            local function open_terminal_path_in_editor()
+                local terminal_buf = vim.api.nvim_get_current_buf()
+                local path = vim.fn.expand("<cWORD>")
+                path = path:gsub("^[%(%[%{<%'%\"]+", "")
+                    :gsub("[%)%]%}>%'%\",;:]+$", "")
+                if path == "" then
+                    vim.notify("No path under cursor", vim.log.levels.WARN)
+                    return
+                end
+
+                local line, column
+                local plain_path, line_text, column_text = path:match("^(.-):(%d+):?(%d*)$")
+                if plain_path then
+                    path = plain_path
+                    line = tonumber(line_text)
+                    column = tonumber(column_text)
+                end
+
+                path = vim.fn.expand(path)
+                if not vim.startswith(path, "/") then
+                    path = vim.fs.joinpath(terminal_cwd(terminal_buf), path)
+                end
+                path = vim.fs.normalize(path)
+
+                local editor_windows = {}
+                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+                    local buf = vim.api.nvim_win_get_buf(win)
+                    if vim.bo[buf].buftype == ""
+                        and vim.bo[buf].filetype ~= "NvimTree"
+                        and vim.api.nvim_win_get_config(win).relative == ""
+                    then
+                        table.insert(editor_windows, win)
+                    end
+                end
+
+                local function open_in(win)
+                    if not win or not vim.api.nvim_win_is_valid(win) then
+                        return
+                    end
+
+                    vim.api.nvim_set_current_win(win)
+                    local ok, error_message = pcall(vim.cmd.edit, vim.fn.fnameescape(path))
+                    if not ok then
+                        vim.notify(error_message, vim.log.levels.ERROR)
+                        return
+                    end
+
+                    if line then
+                        local last_line = vim.api.nvim_buf_line_count(0)
+                        local target_line = math.min(math.max(line, 1), last_line)
+                        local text = vim.api.nvim_buf_get_lines(0, target_line - 1, target_line, false)[1]
+                        local target_column = math.min(
+                            math.max((column or 1) - 1, 0),
+                            #text
+                        )
+                        vim.api.nvim_win_set_cursor(0, { target_line, target_column })
+                    end
+                end
+
+                if #editor_windows == 0 then
+                    vim.cmd("aboveleft new")
+                    open_in(vim.api.nvim_get_current_win())
+                elseif #editor_windows == 1 then
+                    open_in(editor_windows[1])
+                else
+                    open_in(pick_editor_window(editor_windows))
+                end
+            end
+
+            vim.api.nvim_create_autocmd("FileType", {
+                pattern = "toggleterm",
+                callback = function(event)
+                    vim.keymap.set("n", "gf", open_terminal_path_in_editor, {
+                        buffer = event.buf,
+                        desc = "Open path in an editor window",
+                    })
+                    vim.keymap.set("n", "gF", open_terminal_path_in_editor, {
+                        buffer = event.buf,
+                        desc = "Open path with position in an editor window",
+                    })
+                end,
+            })
 
             local function focus_or_open_codex()
                 local open_win = visible_codex_window()
@@ -181,6 +343,55 @@ return {
                 end
             end
 
+            local function order_visible_terminals()
+                local windows = {}
+                local visible_terms = {}
+
+                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+                    local buf = vim.api.nvim_win_get_buf(win)
+                    local id = vim.b[buf].toggle_number
+                    if id
+                        and vim.bo[buf].filetype == "toggleterm"
+                        and vim.api.nvim_win_get_config(win).relative == ""
+                    then
+                        local position = vim.api.nvim_win_get_position(win)
+                        table.insert(windows, {
+                            id = win,
+                            row = position[1],
+                            column = position[2],
+                        })
+                        table.insert(visible_terms, {
+                            id = id,
+                            bufnr = buf,
+                        })
+                    end
+                end
+
+                -- ToggleTerm always splits the most recently opened terminal,
+                -- so reopening a lower-numbered hidden terminal can otherwise
+                -- put it after higher-numbered terminals. Keep the split tree
+                -- intact and reorder the terminal buffers within those windows.
+                table.sort(windows, function(left, right)
+                    if left.row == right.row then
+                        return left.column < right.column
+                    end
+                    return left.row < right.row
+                end)
+                table.sort(visible_terms, function(left, right)
+                    return left.id < right.id
+                end)
+
+                for index, win in ipairs(windows) do
+                    local visible_term = visible_terms[index]
+                    vim.api.nvim_win_set_buf(win.id, visible_term.bufnr)
+
+                    local term = terminal.get(visible_term.id, true)
+                    if term then
+                        term.window = win.id
+                    end
+                end
+            end
+
             local function focus_or_open(count)
                 count = count or vim.v.count1
 
@@ -208,6 +419,7 @@ return {
                 -- Otherwise open it (this is what creates the split/window if it isn't visible yet)
                 leave_sidebar_before_opening_terminal()
                 term:open()
+                order_visible_terminals()
 
                 -- Opening the first ToggleTerm uses a full-width bottom split.
                 -- Put an already-visible native Codex pane back on the outer
@@ -217,8 +429,9 @@ return {
                     local terminal_heights = snapshot_terminal_heights()
                     place_codex_right(codex_win)
                     restore_terminal_heights(terminal_heights)
-                    vim.api.nvim_set_current_win(term.window)
                 end
+
+                vim.api.nvim_set_current_win(term.window)
             end
 
             -- Count-aware mapping:
@@ -308,12 +521,13 @@ return {
             })
 
             -- ToggleTerm jobs cannot be reattached after Neovim exits. Shut
-            -- down every terminal it owns before Neovim unloads the buffers.
+            -- them down only after quitting can no longer be cancelled; doing
+            -- this in ExitPre closes terminal windows and interrupts :qall.
             local exit_group = vim.api.nvim_create_augroup("ToggleTermExitCleanup", {
                 clear = true,
             })
 
-            vim.api.nvim_create_autocmd("ExitPre", {
+            vim.api.nvim_create_autocmd("VimLeavePre", {
                 group = exit_group,
                 callback = function()
                     local terminal = require("toggleterm.terminal")
