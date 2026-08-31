@@ -37,6 +37,7 @@ installed through Mason when Neovim starts.
 | `<leader>t` / `2<leader>t` | Focus terminal 1 / terminal 2 |
 | `<leader>e` / `2<leader>e` | Focus editor window 1 / editor window 2 |
 | `<leader>c` | Focus or open the Codex workspace |
+| `<leader>=` | Restore all workspace windows to their default sizes |
 | `<leader>o` | Focus or open the file tree |
 | `<leader>y` | Copy to the system clipboard |
 | `<A-,>` / `<A-.>` | Go to the previous / next buffer |

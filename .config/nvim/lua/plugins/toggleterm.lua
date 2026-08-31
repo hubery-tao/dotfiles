@@ -74,6 +74,18 @@ return {
                 end
             end
 
+            local function default_terminal_height(term)
+                local size = opts.size
+                if type(size) == "function" then
+                    local ok, resolved_size = pcall(size, term or {
+                        direction = opts.direction or "horizontal",
+                    })
+                    size = ok and resolved_size or nil
+                end
+
+                return math.max(1, tonumber(size) or 12)
+            end
+
             local function place_codex_right(win)
                 if not win or not vim.api.nvim_win_is_valid(win) then
                     return
@@ -392,6 +404,109 @@ return {
                 end
             end
 
+            local function normalize_workspace_frame()
+                local current_win = vim.api.nvim_get_current_win()
+                local windows = {}
+                local fixed_options = {}
+
+                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+                    if vim.api.nvim_win_get_config(win).relative == "" then
+                        table.insert(windows, win)
+                        fixed_options[win] = {
+                            width = vim.wo[win].winfixwidth,
+                            height = vim.wo[win].winfixheight,
+                        }
+
+                        -- Fixed panes can prevent the outer split frame from
+                        -- expanding back to the full Neovim grid. Temporarily
+                        -- release them while normalizing the entire split tree.
+                        vim.wo[win].winfixwidth = false
+                        vim.wo[win].winfixheight = false
+                    end
+                end
+
+                local anchor_win = current_win
+                if vim.api.nvim_win_get_config(current_win).relative ~= "" then
+                    anchor_win = windows[1]
+                end
+
+                if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
+                    vim.api.nvim_win_call(anchor_win, function()
+                        -- :resize or :vertical resize on an outer window can
+                        -- leave unused rows or columns. Maximize once in both
+                        -- directions, then equalize every flexible split.
+                        vim.cmd("wincmd _")
+                        vim.cmd("wincmd |")
+                        vim.cmd("wincmd =")
+                    end)
+                end
+
+                for win, fixed in pairs(fixed_options) do
+                    if vim.api.nvim_win_is_valid(win) then
+                        vim.wo[win].winfixwidth = fixed.width
+                        vim.wo[win].winfixheight = fixed.height
+                    end
+                end
+
+                return anchor_win
+            end
+
+            local function reset_workspace_layout(notify_user)
+                local current_win = vim.api.nvim_get_current_win()
+                local anchor_win = normalize_workspace_frame()
+                local codex_win = visible_codex_window()
+
+                -- Apply the workspace-specific defaults only after the whole
+                -- split frame once again fills the available Neovim grid.
+                if codex_win then
+                    place_codex_right(codex_win)
+                end
+
+                -- Reset nvim-tree through its public API so a manually changed
+                -- width does not become the new persisted tree width.
+                local tree_ok, tree_api = pcall(require, "nvim-tree.api")
+                if tree_ok then
+                    pcall(tree_api.tree.resize)
+                end
+
+                -- A terminal's fixed height is an absolute row count, so it
+                -- can look wrong after attaching a UI with different lines.
+                -- Re-evaluate ToggleTerm's configured 25% size for this UI.
+                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+                    local buf = vim.api.nvim_win_get_buf(win)
+                    local id = vim.b[buf].toggle_number
+                    if id
+                        and vim.bo[buf].filetype == "toggleterm"
+                        and vim.api.nvim_win_get_config(win).relative == ""
+                    then
+                        local term = terminal.get(id, true)
+                        pcall(
+                            vim.api.nvim_win_set_height,
+                            win,
+                            default_terminal_height(term)
+                        )
+                        vim.wo[win].winfixheight = true
+                    end
+                end
+
+                order_visible_terminals()
+
+                -- Keep the fixed sidebar, Codex, and terminal dimensions while
+                -- distributing the remaining space evenly among other splits.
+                if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
+                    vim.api.nvim_win_call(anchor_win, function()
+                        vim.cmd("wincmd =")
+                    end)
+                end
+
+                if vim.api.nvim_win_is_valid(current_win) then
+                    vim.api.nvim_set_current_win(current_win)
+                end
+                if notify_user then
+                    vim.notify("Workspace layout restored")
+                end
+            end
+
             local function focus_or_open(count)
                 count = count or vim.v.count1
 
@@ -432,6 +547,7 @@ return {
                 end
 
                 vim.api.nvim_set_current_win(term.window)
+                vim.cmd("startinsert")
             end
 
             -- Count-aware mapping:
@@ -448,6 +564,16 @@ return {
 
             vim.api.nvim_create_user_command("Codex", focus_or_open_codex, {
                 desc = "Focus/open the right-side Codex workspace",
+            })
+
+            vim.keymap.set("n", "<leader>=", function()
+                reset_workspace_layout(true)
+            end, { desc = "Restore workspace layout" })
+
+            vim.api.nvim_create_user_command("ResetWorkspaceLayout", function()
+                reset_workspace_layout(true)
+            end, {
+                desc = "Restore ToggleTerm and Codex to their default sizes",
             })
 
             -- `nvim .` used to start with only the tree window, which meant a
@@ -513,10 +639,11 @@ return {
 
             vim.api.nvim_create_autocmd("VimResized", {
                 callback = function()
-                    local codex_win = visible_codex_window()
-                    if codex_win then
-                        vim.api.nvim_win_set_width(codex_win, codex_width())
-                    end
+                    -- Wait until Neovim has applied the new UI dimensions,
+                    -- then recompute all fixed workspace pane sizes.
+                    vim.schedule(function()
+                        reset_workspace_layout(false)
+                    end)
                 end,
             })
 
