@@ -355,11 +355,12 @@ return {
                     agent_terminals.place_right(agent_win)
                 end
 
-                -- Reset nvim-tree through its public API so a manually changed
-                -- width does not become the new persisted tree width.
+                -- Passing no options is broken in nvim-tree 1.18.0 because
+                -- that code path calls a missing view.configure_width(). Use
+                -- the configured default width explicitly instead.
                 local tree_ok, tree_api = pcall(require, "nvim-tree.api")
                 if tree_ok then
-                    pcall(tree_api.tree.resize)
+                    pcall(tree_api.tree.resize, { absolute = 30 })
                 end
 
                 -- A terminal's fixed height is an absolute row count, so it

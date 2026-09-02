@@ -3,6 +3,6 @@ return {
     priority = 1000,
     lazy = false,
     opts = {
-        default_scheme = "base16-ayu-dark",
+        default_scheme = "base24-kanagawa-dragon",
     },
 }
