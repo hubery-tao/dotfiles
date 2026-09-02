@@ -11,6 +11,7 @@ opt.splitbelow = true
 opt.splitright = true
 opt.termguicolors = true
 opt.cursorline = true
+opt.signcolumn = "yes"
 opt.timeoutlen = 500
 
 vim.g.clipboard = "osc52"
