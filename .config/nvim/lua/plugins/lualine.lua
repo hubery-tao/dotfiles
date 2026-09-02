@@ -21,10 +21,14 @@ return {
                 globalstatus = true,
                 section_separators = { left = "", right = "" },
                 component_separators = { left = "│", right = "│" },
+                -- Panes that carry no file: a winbar here would only show a
+                -- term:// or tree buffer name.
                 disabled_filetypes = {
                     winbar = {
                         "NvimTree",
                         "toggleterm",
+                        "codex",
+                        "claude",
                     },
                 },
             },

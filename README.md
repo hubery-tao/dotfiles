@@ -36,7 +36,7 @@ installed through Mason when Neovim starts.
 | `<leader>ff/fg/fb/fh/fr` | Telescope files, grep, buffers, help, and resume |
 | `<leader>t` / `2<leader>t` | Focus terminal 1 / terminal 2 |
 | `<leader>e` / `2<leader>e` | Focus editor window 1 / editor window 2 |
-| `<leader>c` | Focus or open the Codex workspace |
+| `<leader>c` / `<leader>a` | Focus or open the Codex / Claude Code workspace (they share the right-hand pane; the hidden one keeps running) |
 | `<leader>=` | Restore all workspace windows to their default sizes |
 | `<leader>o` | Focus or open the file tree |
 | `<leader>y` | Copy to the system clipboard |

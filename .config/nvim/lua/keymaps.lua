@@ -1,26 +1,18 @@
-vim.keymap.set({'n', 'v'}, '<Space>', '<Nop>')
+local map = vim.keymap.set
 
-vim.keymap.set("n", "<esc><esc>", "<cmd>noh<cr>")
+map({ "n", "v" }, "<Space>", "<Nop>")
+map("n", "<Esc><Esc>", "<Cmd>nohlsearch<CR>")
 
-vim.keymap.set("n", "<A-,>", "<cmd>bprevious<cr>", {
-    desc = "Previous buffer",
-})
-vim.keymap.set("n", "<A-.>", "<cmd>bnext<cr>", {
-    desc = "Next buffer",
-})
-vim.keymap.set("n", "<A-c>", "<cmd>confirm bdelete<cr>", {
-    desc = "Close buffer",
-})
+map("n", "<A-,>", "<Cmd>bprevious<CR>", { desc = "Previous buffer" })
+map("n", "<A-.>", "<Cmd>bnext<CR>", { desc = "Next buffer" })
+map("n", "<A-c>", "<Cmd>confirm bdelete<CR>", { desc = "Close buffer" })
 
 for index = 1, 9 do
-    vim.keymap.set(
-        "n",
-        "<A-" .. index .. ">",
-        "<cmd>LualineBuffersJump! " .. index .. "<cr>",
-        { desc = "Go to buffer " .. index }
-    )
+    map("n", "<A-" .. index .. ">", "<Cmd>LualineBuffersJump! " .. index .. "<CR>", {
+        desc = "Go to buffer " .. index,
+    })
 end
-vim.keymap.set("n", "<A-0>", "<cmd>LualineBuffersJump! $<cr>", {
+map("n", "<A-0>", "<Cmd>LualineBuffersJump! $<CR>", {
     desc = "Go to last buffer",
 })
 
@@ -59,17 +51,12 @@ end
 
 -- <leader>e focuses the first regular editor window; a count selects another.
 -- This deliberately skips sidebars, terminals, help windows, and floating windows.
-vim.keymap.set("n", "<leader>e", function()
+map("n", "<leader>e", function()
     focus_editor_window(vim.v.count1)
 end, { desc = "Focus editor window" })
 
-vim.keymap.set("t", "<C-Space>", [[<C-\><C-n>]])
-vim.keymap.set("t", "<Nul>", [[<C-\><C-n>]])
+map("t", "<C-Space>", [[<C-\><C-n>]])
+map("t", "<Nul>", [[<C-\><C-n>]])
 
-vim.keymap.set({"n","v"}, "<leader>y", '"+y')
-vim.keymap.set("n", "<leader>Y", '"+Y')
-
--- Plugin config keymap doesn't stick; set it here
-vim.keymap.set("n", "<localleader>mm", "<Plug>MarkdownPreview")
-vim.keymap.set("n", "<localleader>ms", "<Plug>MarkdownPreviewStop")
-vim.keymap.set("n", "<localleader>mt", "<Plug>MarkdownPreviewToggle")
+map({ "n", "v" }, "<leader>y", '"+y')
+map("n", "<leader>Y", '"+Y')

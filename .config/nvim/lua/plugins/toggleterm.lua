@@ -23,36 +23,6 @@ return {
             local started_with_directory = vim.fn.argc() == 1
                 and vim.fn.isdirectory(vim.fn.argv(0)) == 1
 
-            -- Keep Codex outside ToggleTerm's terminal registry. ToggleTerm
-            -- deliberately opens a new terminal relative to an existing one;
-            -- registering Codex there makes the right-hand Codex pane and the
-            -- horizontal shell pane resize each other whenever either reopens.
-            local function codex_width()
-                return math.floor(vim.o.columns * 0.30)
-            end
-
-            local codex = {
-                bufnr = nil,
-                window = nil,
-                job_id = nil,
-            }
-
-            local function visible_codex_window()
-                if not codex.bufnr or not vim.api.nvim_buf_is_valid(codex.bufnr) then
-                    return nil
-                end
-
-                local wins = vim.fn.win_findbuf(codex.bufnr)
-                for _, win in ipairs(wins) do
-                    if vim.api.nvim_win_is_valid(win)
-                        and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()
-                    then
-                        codex.window = win
-                        return win
-                    end
-                end
-            end
-
             local function snapshot_terminal_heights()
                 local heights = {}
                 for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -86,34 +56,32 @@ return {
                 return math.max(1, tonumber(size) or 12)
             end
 
-            local function place_codex_right(win)
-                if not win or not vim.api.nvim_win_is_valid(win) then
-                    return
-                end
+            local function is_editor_window(win)
+                local buf = vim.api.nvim_win_get_buf(win)
+                return vim.api.nvim_win_get_config(win).relative == ""
+                    and vim.bo[buf].buftype == ""
+                    and vim.bo[buf].filetype ~= "NvimTree"
+            end
 
-                vim.api.nvim_win_call(win, function()
-                    -- A vsplit made from the editor may initially occupy only
-                    -- its row. Move it to the outer right edge so it spans the
-                    -- editor and horizontal terminal rows.
-                    vim.cmd("wincmd L")
-                end)
-                vim.api.nvim_win_set_width(win, codex_width())
-                vim.wo[win].winfixwidth = true
-                vim.wo[win].winbar = " Codex"
-                codex.window = win
+            local function editor_windows()
+                return vim.tbl_filter(
+                    is_editor_window,
+                    vim.api.nvim_tabpage_list_wins(0)
+                )
             end
 
             local function find_editor_window()
-                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-                    local buf = vim.api.nvim_win_get_buf(win)
-                    if vim.bo[buf].buftype ~= "terminal"
-                        and vim.bo[buf].filetype ~= "NvimTree"
-                        and vim.api.nvim_win_get_config(win).relative == ""
-                    then
-                        return win
-                    end
-                end
+                return editor_windows()[1]
             end
+
+            -- Agents use native terminal jobs rather than ToggleTerm's
+            -- registry so their right-hand pane does not fight shell splits.
+            local agent_terminals = require("config.agent_terminals")
+            agent_terminals.setup({
+                find_editor_window = find_editor_window,
+                snapshot_layout = snapshot_terminal_heights,
+                restore_layout = restore_terminal_heights,
+            })
 
             local function terminal_cwd(bufnr)
                 local job_id = vim.b[bufnr].terminal_job_id
@@ -217,16 +185,7 @@ return {
                 end
                 path = vim.fs.normalize(path)
 
-                local editor_windows = {}
-                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-                    local buf = vim.api.nvim_win_get_buf(win)
-                    if vim.bo[buf].buftype == ""
-                        and vim.bo[buf].filetype ~= "NvimTree"
-                        and vim.api.nvim_win_get_config(win).relative == ""
-                    then
-                        table.insert(editor_windows, win)
-                    end
-                end
+                local available_editors = editor_windows()
 
                 local function open_in(win)
                     if not win or not vim.api.nvim_win_is_valid(win) then
@@ -252,13 +211,13 @@ return {
                     end
                 end
 
-                if #editor_windows == 0 then
+                if #available_editors == 0 then
                     vim.cmd("aboveleft new")
                     open_in(vim.api.nvim_get_current_win())
-                elseif #editor_windows == 1 then
-                    open_in(editor_windows[1])
+                elseif #available_editors == 1 then
+                    open_in(available_editors[1])
                 else
-                    open_in(pick_editor_window(editor_windows))
+                    open_in(pick_editor_window(available_editors))
                 end
             end
 
@@ -276,82 +235,16 @@ return {
                 end,
             })
 
-            local function focus_or_open_codex()
-                local open_win = visible_codex_window()
-                if open_win then
-                    vim.api.nvim_set_current_win(open_win)
+            local function leave_sidebar_before_opening_terminal()
+                local current_buf = vim.api.nvim_get_current_buf()
+                local current_ft = vim.bo[current_buf].filetype
+                if not agent_terminals.is_buffer(current_buf) and current_ft ~= "NvimTree" then
                     return
                 end
 
                 local editor_win = find_editor_window()
                 if editor_win then
                     vim.api.nvim_set_current_win(editor_win)
-                end
-
-                local terminal_heights = snapshot_terminal_heights()
-                vim.cmd("botright vsplit")
-                local win = vim.api.nvim_get_current_win()
-
-                if codex.bufnr and vim.api.nvim_buf_is_valid(codex.bufnr) then
-                    vim.api.nvim_win_set_buf(win, codex.bufnr)
-                else
-                    local bufnr = vim.api.nvim_create_buf(false, true)
-                    codex.bufnr = bufnr
-                    vim.api.nvim_win_set_buf(win, bufnr)
-                    vim.bo[bufnr].bufhidden = "hide"
-                    vim.bo[bufnr].buflisted = false
-                    vim.bo[bufnr].swapfile = false
-
-                    codex.job_id = vim.fn.jobstart({ "codex" }, { term = true })
-                    vim.bo[bufnr].filetype = "codex"
-
-                    vim.api.nvim_create_autocmd("TermClose", {
-                        buffer = bufnr,
-                        once = true,
-                        callback = function()
-                            vim.schedule(function()
-                                for _, codex_win in ipairs(vim.fn.win_findbuf(bufnr)) do
-                                    if vim.api.nvim_win_is_valid(codex_win)
-                                        and #vim.api.nvim_tabpage_list_wins(0) > 1
-                                    then
-                                        vim.api.nvim_win_close(codex_win, true)
-                                    end
-                                end
-
-                                if vim.api.nvim_buf_is_valid(bufnr) then
-                                    vim.api.nvim_buf_delete(bufnr, { force = true })
-                                end
-                                if codex.bufnr == bufnr then
-                                    codex.bufnr = nil
-                                    codex.window = nil
-                                    codex.job_id = nil
-                                end
-                            end)
-                        end,
-                    })
-                end
-
-                place_codex_right(win)
-                restore_terminal_heights(terminal_heights)
-                vim.cmd("startinsert")
-            end
-
-            local function leave_sidebar_before_opening_terminal()
-                local current_buf = vim.api.nvim_get_current_buf()
-                local current_ft = vim.bo[current_buf].filetype
-                if current_buf ~= codex.bufnr and current_ft ~= "NvimTree" then
-                    return
-                end
-
-                for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-                    local buf = vim.api.nvim_win_get_buf(win)
-                    if vim.bo[buf].buftype ~= "terminal"
-                        and vim.bo[buf].filetype ~= "NvimTree"
-                        and vim.api.nvim_win_get_config(win).relative == ""
-                    then
-                        vim.api.nvim_set_current_win(win)
-                        return
-                    end
                 end
             end
 
@@ -454,12 +347,12 @@ return {
             local function reset_workspace_layout(notify_user)
                 local current_win = vim.api.nvim_get_current_win()
                 local anchor_win = normalize_workspace_frame()
-                local codex_win = visible_codex_window()
+                local agent_win = agent_terminals.visible_window()
 
                 -- Apply the workspace-specific defaults only after the whole
                 -- split frame once again fills the available Neovim grid.
-                if codex_win then
-                    place_codex_right(codex_win)
+                if agent_win then
+                    agent_terminals.place_right(agent_win)
                 end
 
                 -- Reset nvim-tree through its public API so a manually changed
@@ -491,7 +384,7 @@ return {
 
                 order_visible_terminals()
 
-                -- Keep the fixed sidebar, Codex, and terminal dimensions while
+                -- Keep the fixed sidebar, agent, and terminal dimensions while
                 -- distributing the remaining space evenly among other splits.
                 if anchor_win and vim.api.nvim_win_is_valid(anchor_win) then
                     vim.api.nvim_win_call(anchor_win, function()
@@ -537,12 +430,12 @@ return {
                 order_visible_terminals()
 
                 -- Opening the first ToggleTerm uses a full-width bottom split.
-                -- Put an already-visible native Codex pane back on the outer
+                -- Put an already-visible native agent pane back on the outer
                 -- right, then restore the height selected for the shell pane.
-                local codex_win = visible_codex_window()
-                if codex_win then
+                local agent_win = agent_terminals.visible_window()
+                if agent_win then
                     local terminal_heights = snapshot_terminal_heights()
-                    place_codex_right(codex_win)
+                    agent_terminals.place_right(agent_win)
                     restore_terminal_heights(terminal_heights)
                 end
 
@@ -557,15 +450,6 @@ return {
                 focus_or_open(vim.v.count1)
             end, { desc = "Focus/open terminal" })
 
-            -- In terminal mode, use <C-Space> first to return to Normal mode.
-            vim.keymap.set("n", "<leader>c", focus_or_open_codex, {
-                desc = "Focus/open Codex workspace",
-            })
-
-            vim.api.nvim_create_user_command("Codex", focus_or_open_codex, {
-                desc = "Focus/open the right-side Codex workspace",
-            })
-
             vim.keymap.set("n", "<leader>=", function()
                 reset_workspace_layout(true)
             end, { desc = "Restore workspace layout" })
@@ -573,13 +457,14 @@ return {
             vim.api.nvim_create_user_command("ResetWorkspaceLayout", function()
                 reset_workspace_layout(true)
             end, {
-                desc = "Restore ToggleTerm and Codex to their default sizes",
+                desc = "Restore ToggleTerm and the agent pane to their default sizes",
             })
 
             -- `nvim .` used to start with only the tree window, which meant a
             -- file had to be opened before the terminal layout could be built.
             -- Give directory sessions an empty editor target and open the
-            -- default terminal automatically. Codex stays opt-in via <leader>c.
+            -- default terminal automatically. The agents stay opt-in via
+            -- <leader>c and <leader>a.
             if started_with_directory then
                 vim.api.nvim_create_autocmd("VimEnter", {
                     once = true,
@@ -599,9 +484,7 @@ return {
 
                                 if filetype == "NvimTree" then
                                     tree_win = win
-                                elseif vim.bo[buf].buftype ~= "terminal"
-                                    and vim.api.nvim_win_get_config(win).relative == ""
-                                then
+                                elseif is_editor_window(win) then
                                     editor_win = win
                                     break
                                 end
@@ -648,8 +531,7 @@ return {
             })
 
             -- ToggleTerm jobs cannot be reattached after Neovim exits. Shut
-            -- them down only after quitting can no longer be cancelled; doing
-            -- this in ExitPre closes terminal windows and interrupts :qall.
+            -- them down only after quitting can no longer be cancelled.
             local exit_group = vim.api.nvim_create_augroup("ToggleTermExitCleanup", {
                 clear = true,
             })
@@ -657,7 +539,6 @@ return {
             vim.api.nvim_create_autocmd("VimLeavePre", {
                 group = exit_group,
                 callback = function()
-                    local terminal = require("toggleterm.terminal")
                     for _, term in ipairs(terminal.get_all(true)) do
                         term:shutdown()
                     end

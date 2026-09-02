@@ -5,8 +5,8 @@ return {
     dependencies = {
         "nvim-tree/nvim-web-devicons",
     },
-    config = function()
-        require("nvim-tree").setup {}
-        vim.keymap.set("n", "<leader>o", "<cmd>NvimTreeFocus<cr>")
-    end
+    opts = {},
+    keys = {
+        { "<leader>o", "<Cmd>NvimTreeFocus<CR>", desc = "Focus file tree" },
+    },
 }
