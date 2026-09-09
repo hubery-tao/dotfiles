@@ -180,7 +180,7 @@ function M.setup(opts)
         snapshot_layout = function() end,
         restore_layout = function() end,
         width = function()
-            return math.floor(vim.o.columns * 0.30)
+            return math.floor(vim.o.columns * 0.33)
         end,
     }, opts or {})
 

@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# Push a desktop/phone notification when a coding agent finishes a turn or
+# blocks waiting for approval.
+#
+#   agent-notify <agent> <event> [json]
+#
+# The message travels over HTTPS to ntfy.sh rather than through the terminal.
+# On a remote box the escape-sequence route (OSC 9, OSC 777) is not available:
+# tmux 2.7 predates `allow-passthrough` and drops any OSC it does not know, so
+# a notification emitted inside nvim's :terminal never reaches the Mac.
+#
+# Claude Code hooks deliver their payload on stdin; the codex `notify` program
+# gets it as a trailing argument. Both are optional -- the notification is
+# built from the arguments and $PWD, and the payload only enriches it.
+
+set -uo pipefail
+
+agent=${1:-agent}
+event=${2:-done}
+payload=${3:-}
+
+topic=${AGENT_NOTIFY_TOPIC:-}
+topic_file=${AGENT_NOTIFY_TOPIC_FILE:-$HOME/.config/agent-notify/topic}
+detail_file="${topic_file%/*}/detail"
+if [[ -z $topic && -r $topic_file ]]; then
+    IFS= read -r topic <"$topic_file" || true
+fi
+
+# Never let a missing topic or a network problem surface as a hook failure.
+[[ -n $topic ]] || exit 0
+[[ $topic =~ ^[-_A-Za-z0-9]{1,64}$ ]] || exit 0
+command -v curl >/dev/null 2>&1 || exit 0
+
+# Claude Code writes the hook payload to stdin. Read it only when stdin is a
+# pipe, so an interactive invocation does not hang waiting for EOF.
+if [[ -z $payload && ! -t 0 ]]; then
+    if command -v timeout >/dev/null 2>&1; then
+        payload=$(timeout 2 cat 2>/dev/null || true)
+    elif command -v gtimeout >/dev/null 2>&1; then
+        # GNU coreutils installs this name on macOS.
+        payload=$(gtimeout 2 cat 2>/dev/null || true)
+    else
+        # Hook stdin is a finite pipe. This fallback keeps payload parsing
+        # working on a stock macOS installation without GNU coreutils.
+        payload=$(cat 2>/dev/null || true)
+    fi
+fi
+
+# Pull one string field out of the payload. python3 is optional: without it the
+# notification simply carries less detail.
+json_field() {
+    local key=$1
+    [[ -n $payload ]] || return 0
+    command -v python3 >/dev/null 2>&1 || return 0
+    printf '%s' "$payload" | python3 -c '
+import json, sys
+key = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+value = data.get(key)
+if isinstance(value, str):
+    print(value.replace("\n", " ").strip()[:180])
+' "$key" 2>/dev/null
+}
+
+# Hooks run in the project directory, so $PWD names the project without any
+# parsing. Fall back to the payload when the agent spawned us from elsewhere.
+project=$(json_field cwd)
+project=${project:-$PWD}
+project=${project##*/}
+project=${project:-~}
+
+# Every machine posts to the same topic, so that one subscription follows the
+# user around; the host name is what tells two machines' notifications apart.
+host=${AGENT_NOTIFY_HOST:-$(hostname -s 2>/dev/null || uname -n)}
+host=${host%%.*}
+
+case $event in
+    waiting)
+        title="$agent needs you"
+        tags="warning"
+        priority=4
+        fallback="Waiting for approval."
+        detail_key="message"
+        ;;
+    *)
+        title="$agent finished"
+        tags="white_check_mark"
+        priority=3
+        fallback="Turn complete."
+        detail_key="last-assistant-message"
+        ;;
+esac
+
+# The payload carries real work output -- codex sends its whole last reply --
+# and an ntfy.sh topic has no access control: the documentation calls the topic
+# "essentially a password", so anyone holding it can read the entire history.
+# Sending that content is therefore opt-in per machine. The marker file is the
+# dependable half of the switch: a hook inherits its environment from whichever
+# shell started the agent, by way of a tmux server that may predate the export.
+detail=""
+if [[ ${AGENT_NOTIFY_DETAIL:-0} == 1 || -e $detail_file ]]; then
+    detail=$(json_field "$detail_key")
+fi
+detail=${detail:-$fallback}
+
+# Quote one shell string as JSON without making Python a runtime dependency.
+# Bash variables cannot contain NUL; every other JSON control byte is escaped.
+json_string() {
+    local value=$1 output="" char code i
+    local LC_ALL=C
+
+    for ((i = 0; i < ${#value}; i += 1)); do
+        char=${value:i:1}
+        case $char in
+            '"') output+='\"' ;;
+            '\') output+='\\' ;;
+            $'\b') output+='\b' ;;
+            $'\f') output+='\f' ;;
+            $'\n') output+='\n' ;;
+            $'\r') output+='\r' ;;
+            $'\t') output+='\t' ;;
+            *)
+                printf -v code '%d' "'$char"
+                if (( code < 32 )); then
+                    printf -v char '\\u%04x' "$code"
+                fi
+                output+=$char
+                ;;
+        esac
+    done
+
+    printf '"%s"' "$output"
+}
+
+# JSON publishing keeps the topic (a shared secret) and the optional detailed
+# message on stdin instead of exposing either one in curl's process arguments.
+{
+    printf '{"topic":'
+    json_string "$topic"
+    printf ',"message":'
+    json_string "$detail"
+    printf ',"title":'
+    json_string "${title} in ${project}${host:+ (${host})}"
+    printf ',"tags":['
+    json_string "$tags"
+    printf '],"priority":%s}' "$priority"
+} | curl -s -S --max-time 8 -o /dev/null \
+    -H 'Content-Type: application/json' \
+    --data-binary @- \
+    'https://ntfy.sh/' 2>/dev/null
+
+exit 0
