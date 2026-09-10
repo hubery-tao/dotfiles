@@ -221,8 +221,10 @@ return {
                 end
             end
 
+            -- The agent panes are native terminals rather than ToggleTerm
+            -- buffers, so they need the same mapping under their own filetypes.
             vim.api.nvim_create_autocmd("FileType", {
-                pattern = "toggleterm",
+                pattern = { "toggleterm", "codex", "claude" },
                 callback = function(event)
                     vim.keymap.set("n", "gf", open_terminal_path_in_editor, {
                         buffer = event.buf,

@@ -10,15 +10,19 @@ Clone the repository, then run:
 ./setup.sh
 ```
 
-Every path in this repository mirrors its destination under `$HOME`:
-`.config/nvim/` is linked to `~/.config/nvim/`, `.local/bin/` to
-`~/.local/bin/`, and so on. Keep new files on that pattern -- it is what makes
-the destination of anything here obvious from its path alone.
+The installer symlinks every path in this repository to the matching path under
+`$HOME`: `.config/nvim/` to `~/.config/nvim/`, `.local/bin/` to
+`~/.local/bin/`, and so on. If a target already exists it asks before replacing
+it, and moves the old file to a timestamped `*.backup.*` path. Running it again
+is safe.
 
-The installer creates symbolic links into the current user's home directory. If
-a target already exists, it asks before replacing it. Replaced files and
-directories are moved to a timestamped `*.backup.*` path instead of being
-deleted. Running the installer again does not duplicate shell startup entries.
+The shell snippets are the one exception to the matching-path rule.
+`.bashrc.d/` is linked into `~/.bashrc.d/` on Linux and `~/.zshrc.d/` on
+macOS, and the installer appends a block to the shell profile it finds there
+-- `~/.bashrc` or `~/.zshrc` -- that sources every `*.sh` in that directory.
+On macOS it also appends `select-word-style bash`, so that zsh's `Ctrl-W`
+stops at the same word boundaries bash uses. Both blocks sit between marker
+comments, are added only once, and leave the rest of the profile alone.
 
 ## Requirements
 
@@ -27,10 +31,36 @@ deleted. Running the installer again does not duplicate shell startup entries.
 - tmux for `.tmux.conf`
 - A Nerd Font for plugin icons (optional)
 - Node.js/npm for Markdown Preview
+- `codex` and `claude` on `PATH` for the agent workspace (optional)
+- `python3` to merge the Claude Code hook, and to read notification detail
 - Skim on macOS or Zathura on Linux for VimTeX PDF viewing (optional)
 
-Neovim plugins are installed automatically by lazy.nvim. Language servers are
-installed through Mason when Neovim starts.
+Neovim plugins install themselves through lazy.nvim on first start, and
+language servers through Mason.
+
+## Neovim plugins
+
+| Plugin | What it gives you |
+| --- | --- |
+| [lazy.nvim](https://github.com/folke/lazy.nvim) | Plugin manager; `:Lazy` opens it |
+| [tinted-nvim](https://github.com/tinted-theming/tinted-nvim) | Colour scheme (base24 kanagawa-dragon) |
+| [lualine.nvim](https://github.com/nvim-lualine/lualine.nvim) | Status line, plus the numbered buffer line at the top |
+| [nvim-tree.lua](https://github.com/nvim-tree/nvim-tree.lua) | File tree sidebar |
+| [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) | Fuzzy finder for files, grep, buffers, and help |
+| [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting for C, Fortran, Lua, Markdown, Python, and Vim |
+| [mason.nvim](https://github.com/mason-org/mason.nvim) + [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP; installs pyright, ruff, lua_ls, clangd, texlab, marksman, and fortls |
+| [blink.cmp](https://github.com/saghen/blink.cmp) | Completion, with friendly-snippets |
+| [copilot.vim](https://github.com/github/copilot.vim) | GitHub Copilot suggestions; run `:Copilot setup` once |
+| [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim) | Git signs in the gutter and hunk navigation |
+| [nvim-surround](https://github.com/kylechui/nvim-surround) | Add, change, and delete surrounding pairs |
+| [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | Auto-closes brackets and quotes |
+| [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) | The built-in terminals and the agent workspace |
+| [vimtex](https://github.com/lervag/vimtex) | LaTeX editing and PDF viewing |
+| [quarto-nvim](https://github.com/quarto-dev/quarto-nvim) | Quarto documents, with otter.nvim for embedded code |
+| [markdown-preview.nvim](https://github.com/iamcco/markdown-preview.nvim) | Live Markdown preview in the browser |
+
+Run `:Lazy update` to update them. `lazy-lock.json` is ignored, so every
+machine resolves plugin versions independently.
 
 ## Neovim key bindings
 
@@ -50,66 +80,40 @@ installed through Mason when Neovim starts.
 | `<A-c>` | Close the current buffer, prompting for unsaved changes |
 | `<C-j>` / `<C-l>` in Insert mode | Accept a full Copilot suggestion / one suggestion line |
 | `<C-Space>` in Terminal mode | Return to Normal mode |
-| `[[` / `]]` in a terminal's Normal mode | Jump to the previous / next shell command |
+| `[[` / `]]` in a terminal's Normal mode | Jump to the previous / next shell command (needs `.bashrc.d/nvim-terminal.sh`, so bash or zsh) |
+| `gf` / `gF` in a terminal or agent pane | Open the path under the cursor in an editor window |
+| `]c` / `[c` | Jump to the next / previous git hunk |
+| `<localleader>mm/ms/mt` in Markdown | Start / stop / toggle the Markdown preview |
+| `<Esc><Esc>` | Clear search highlighting |
 
 After inspecting earlier terminal output, press `G` and then `i` to return to
-the live prompt. Prompt navigation requires Neovim 0.11 or newer and is enabled
-automatically for shells started inside Neovim.
+the live prompt.
 
 ## Agent notifications
 
-`.local/bin/agent-notify` pushes a notification when Codex or Claude Code finishes a
-turn or blocks on a permission prompt, so a run started over SSH can be left
-unattended. It posts to [ntfy.sh](https://ntfy.sh) rather than emitting a
-terminal escape sequence: inside `ssh -> tmux -> nvim -> :terminal` there is no
-escape sequence that survives the trip, since tmux 2.7 predates
-`allow-passthrough` and drops any OSC it does not recognize.
+`.local/bin/agent-notify` pushes a notification through [ntfy.sh](https://ntfy.sh)
+when Codex or Claude Code finishes a turn or blocks on a permission prompt, so
+a run started over SSH can be left unattended.
 
-`setup.sh` wires this up. It asks once for an ntfy topic -- press Enter to take
-the generated suggestion on the first machine, then enter that same topic on
-every other machine, and subscribe to it in the ntfy app. Answer `skip` to
-leave notifications silent; the resulting empty topic file remembers that
-choice, and writing a topic into it enables notifications later. Topic names
-may contain only letters, numbers, underscores, and dashes, up to 64 characters.
-The topic is a shared secret, so it is stored in
-`~/.config/agent-notify/topic` rather than in this repository, and
-`AGENT_NOTIFY_TOPIC` overrides it. Without a topic the script exits quietly.
+`setup.sh` wires it up and asks once for a topic. Press Enter to take the
+generated suggestion on the first machine, enter that same topic on every other
+machine, and subscribe to it in the ntfy app -- one subscription then catches
+every run wherever it was started. Answer `skip` to leave notifications silent;
+writing a topic into `~/.config/agent-notify/topic` enables them later. Topic
+names may use letters, numbers, underscores, and dashes, up to 64 characters.
 
-Every machine posts to that one topic, so a single subscription catches every
-run wherever it was started. Each notification is titled with the agent, the
-project directory and the host name -- `codex finished in STAR (isye-hps0401)`
--- which is what tells two machines apart; set `AGENT_NOTIFY_HOST` to use a
-friendlier label than the host name. Give a machine its own topic instead only
-if its notifications need to be muted separately.
+Anyone who knows the topic can read its whole history, so treat it as a
+password and keep it out of the repository. For that reason the notification
+body says only `Turn complete.` or `Waiting for approval.` by default. To send
+the agent's own words instead, create `~/.config/agent-notify/detail` on that
+machine (or set `AGENT_NOTIFY_DETAIL=1`; the file is more reliable, since hooks
+inherit their environment from a tmux server that may predate the export).
 
-An ntfy.sh topic has no access control -- the documentation calls the topic
-"essentially a password", and anyone holding it can read the whole history --
-so the notification body carries no payload text by default: it says only
-`Turn complete.` or `Waiting for approval.`. To send the agent's own words
-instead (Codex reports its last reply, Claude Code the reason it is blocked),
-opt the machine in with `AGENT_NOTIFY_DETAIL=1` or by creating
-`~/.config/agent-notify/detail`. Prefer the file: a hook inherits its
-environment from whichever shell started the agent, by way of a tmux server
-that may predate the export. The title still names the agent, the project
-directory and the host on every machine.
+Each notification is titled with the agent, the project directory, and the host
+name -- `Codex finished in STAR (isye-hps0401)` -- which is what tells two
+machines apart. Set `AGENT_NOTIFY_HOST` for a friendlier label, or
+`AGENT_NOTIFY_TOPIC` to override the topic file.
 
-The agent configs are merged into rather than symlinked, because the tools
-rewrite them (Claude Code stores the theme and model chosen through `/config`,
-Codex appends a `trust_level` table per project) and they hold machine-specific
-absolute paths. `setup.sh` adds `Stop` and `Notification` hooks to
-`~/.claude/settings.json`, and `notify` plus a `PermissionRequest` hook to
-`~/.codex/config.toml`, leaving every other key alone and doing nothing on a
-second run. The `Notification` hook carries a matcher because that event also
-fires on a 60-second idle timer, which would otherwise send a second
-notification after every single turn. Codex runs the `PermissionRequest` hook
-in the background so a slow network cannot delay the approval prompt, and it
-coexists with any other hooks already configured for that event. After
-installing or changing the Codex hook, open `/hooks` in the Codex CLI, review
-the `agent-notify` command, and trust it; Codex skips new or changed unmanaged
-hooks until they are trusted. Merging the Claude config needs `python3`; the
-Codex config does not.
-
-## Update plugins
-
-Run `:Lazy update` inside Neovim. `lazy-lock.json` is intentionally ignored so
-each installation resolves the configured plugin versions independently.
+After installing or changing the Codex hook, open `/hooks` in the Codex CLI,
+review the `agent-notify` command, and trust it -- Codex skips new or changed
+hooks until they are trusted.

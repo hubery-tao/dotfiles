@@ -16,6 +16,8 @@
 set -uo pipefail
 
 agent=${1:-agent}
+# macOS still ships bash 3.2, where `${agent^}` is a syntax error.
+agent="$(printf %s "${agent:0:1}" | tr '[:lower:]' '[:upper:]')${agent:1}"
 event=${2:-done}
 payload=${3:-}
 
