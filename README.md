@@ -68,6 +68,55 @@ If a language server fails to install, open `:Mason` and `:MasonLog` for details
 For the Pyright “npm not found” error, make `node` and `npm` available on `PATH`,
 restart Neovim, then run `:MasonInstall pyright`.
 
+## Shell aliases
+
+Defined in [`.bashrc.d/alias.sh`](.bashrc.d/alias.sh), loaded by Bash on Linux
+and Zsh on macOS. Arguments can be appended as with the underlying commands.
+
+### File listings
+
+All listing aliases enable colors using the platform's `ls` options.
+
+| Alias | Action |
+| --- | --- |
+| `ls` | List files with colors |
+| `ll` | Long listing with human-readable sizes |
+| `la` | Include hidden files, excluding `.` and `..` |
+| `lla` | Long listing with human-readable sizes and hidden files, excluding `.` and `..` |
+
+### Git
+
+| Alias / usage | Command |
+| --- | --- |
+| `gss` | `git status -s` |
+| `gst` | `git status` |
+| `gaa` | `git add -A` |
+| `gcm "message"` | `git commit -m "message"` |
+| `gca` | `git commit --amend` |
+| `gcane` | `git commit --amend --no-edit` |
+| `gfe` | `git fetch` |
+
+### tmux
+
+| Alias / usage | Action |
+| --- | --- |
+| `tn session` | Create a named session (`tmux new -s`) |
+| `ta session` | Attach to a session (`tmux attach -t`) |
+| `tl` | List sessions (`tmux ls`) |
+
+### Archives
+
+| Alias / usage | Action |
+| --- | --- |
+| `untar archive.tar.gz` | Extract into the current directory (`tar -xf`) |
+| `tarls archive.tar.gz` | List archive contents (`tar -tf`) |
+| `mktgz backup.tar.gz folder/` | Create a gzip-compressed tar archive (`tar -czf`) |
+
+`untar` and `tarls` also work with `.tar`, `.tar.bz2`, and `.tar.xz` files.
+Use `untar archive.tar.gz -C target/` to extract into an existing directory,
+or append `-v` to print filenames during extraction. Use `zip` and `unzip`
+directly for ZIP archives.
+
 ## Neovim plugins
 
 | Plugin | What it gives you |

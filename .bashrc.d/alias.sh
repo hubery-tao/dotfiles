@@ -21,3 +21,7 @@ alias gfe='git fetch'
 alias tn='tmux new -s'
 alias ta='tmux attach -t'
 alias tl='tmux ls'
+
+alias untar='tar -xf'
+alias tarls='tar -tf'
+alias mktgz='tar -czf'
