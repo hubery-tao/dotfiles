@@ -2,6 +2,31 @@
 
 set -euo pipefail
 
+nvim_profile=""
+for arg in "$@"; do
+    case "$arg" in
+        --no-gui|--gui)
+            requested_profile=${arg#--}
+            if [[ -n "$nvim_profile" && "$nvim_profile" != "$requested_profile" ]]; then
+                printf 'Error: --gui and --no-gui cannot be combined\n' >&2
+                exit 1
+            fi
+            nvim_profile=$requested_profile
+            ;;
+        -h|--help)
+            printf 'Usage: %s [--no-gui | --gui]\n' "${0##*/}"
+            printf '  --no-gui  Disable Markdown Preview and the VimTeX PDF viewer.\n'
+            printf '  --gui     Enable the full Neovim configuration.\n'
+            printf 'Without either flag, keep the saved profile (default: gui).\n'
+            exit 0
+            ;;
+        *)
+            printf 'Error: unknown option: %s (see --help)\n' "$arg" >&2
+            exit 1
+            ;;
+    esac
+done
+
 system=$(uname -s)
 case "$system" in
     Darwin)
@@ -117,8 +142,21 @@ if [[ $system == "Darwin" ]] && ! grep -Fq "autoload -Uz select-word-style" "$sh
     } >> "$shellrc"
 fi
 
-mkdir -p "$HOME/.config"
-link_config "$curr_dir/.config/nvim" "$HOME/.config/nvim"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+mkdir -p "$config_home"
+link_config "$curr_dir/.config/nvim" "$config_home/nvim"
+
+# Keep machine-specific choices outside the symlinked Neovim configuration.
+nvim_profile_file="$config_home/dotfiles/nvim-profile"
+if [[ -n "$nvim_profile" ]]; then
+    mkdir -p "$(dirname -- "$nvim_profile_file")"
+    printf '%s\n' "$nvim_profile" > "$nvim_profile_file"
+    printf 'Neovim profile: %s (saved to %s)\n' "$nvim_profile" "$nvim_profile_file"
+elif [[ -f "$nvim_profile_file" ]]; then
+    printf 'Keeping saved Neovim profile: %s\n' "$nvim_profile_file"
+else
+    printf 'Neovim profile: gui (default)\n'
+fi
 
 # Agent notification wiring.
 #
@@ -318,6 +356,39 @@ merge_codex_hooks() {
     fi
 }
 
+check_nvim_dependencies() {
+    local tool purpose
+    local missing=0
+
+    printf '\nChecking Neovim dependencies...\n'
+    for tool in node npm rg; do
+        case "$tool" in
+            node) purpose='Pyright, Copilot, and Markdown Preview (GUI profile)' ;;
+            npm) purpose='Pyright installation and Markdown Preview (GUI profile)' ;;
+            rg) purpose='Telescope live grep (<leader>fg)' ;;
+        esac
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            printf 'Missing: %s -- needed for %s\n' "$tool" "$purpose"
+            missing=1
+        fi
+    done
+
+    if ! command -v cc >/dev/null 2>&1 \
+        && ! command -v gcc >/dev/null 2>&1 \
+        && ! command -v clang >/dev/null 2>&1; then
+        printf 'Missing: C compiler (cc, gcc, or clang) -- needed for Treesitter parsers\n'
+        missing=1
+    fi
+
+    if (( missing )); then
+        printf 'Setup completed. Install or load the missing tools on PATH before starting Neovim.\n'
+        printf 'Pyright needs Node.js/npm even with --no-gui. Nothing was installed automatically.\n'
+    else
+        printf 'Node.js/npm, ripgrep, and a C compiler are available on PATH.\n'
+    fi
+}
+
 setup_notify_topic
 merge_claude_hooks
 merge_codex_hooks
+check_nvim_dependencies

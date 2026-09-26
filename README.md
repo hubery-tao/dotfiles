@@ -4,25 +4,40 @@ Personal shell, tmux, and Neovim configuration for Linux and macOS.
 
 ## Install
 
-Clone the repository, then run:
+Clone the repository into a permanent location, enter it, then run:
 
 ```sh
 ./setup.sh
 ```
 
-The installer symlinks every path in this repository to the matching path under
-`$HOME`: `.config/nvim/` to `~/.config/nvim/`, `.local/bin/` to
-`~/.local/bin/`, and so on. If a target already exists it asks before replacing
-it, and moves the old file to a timestamped `*.backup.*` path. Running it again
-is safe.
+For a server or another environment without a desktop, use:
 
-The shell snippets are the one exception to the matching-path rule.
-`.bashrc.d/` is linked into `~/.bashrc.d/` on Linux and `~/.zshrc.d/` on
-macOS, and the installer appends a block to the shell profile it finds there
--- `~/.bashrc` or `~/.zshrc` -- that sources every `*.sh` in that directory.
-On macOS it also appends `select-word-style bash`, so that zsh's `Ctrl-W`
-stops at the same word boundaries bash uses. Both blocks sit between marker
-comments, are added only once, and leave the rest of the profile alone.
+```sh
+./setup.sh --no-gui
+```
+
+`--no-gui` disables Markdown Preview and VimTeX's PDF viewer. LaTeX editing
+and compilation, LSP, terminals, and other plugins remain enabled.
+
+Use `./setup.sh --gui` to restore the full configuration. Restart Neovim after
+switching profiles. The choice is saved per machine in
+`${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/nvim-profile`, outside the repository.
+Without a flag, setup preserves the saved choice (default: `gui`); it does not
+detect SSH or display availability. Run `./setup.sh --help` for options.
+
+If Markdown Preview was already installed, `:Lazy clean` can remove its unused
+files after switching to `--no-gui` (review the cleanup list before confirming).
+
+Setup creates **absolute symlinks** for `.tmux.conf`, the Neovim configuration,
+executables in `.local/bin/`, and shell snippets. If you move this repository,
+rerun setup from its new location. Existing targets are replaced only after
+confirmation and backed up as `*.backup.*`; unchanged links are skipped.
+Neovim uses `${XDG_CONFIG_HOME:-$HOME/.config}/nvim`.
+
+Shell snippets go into `~/.bashrc.d/` on Linux and `~/.zshrc.d/` on macOS.
+Setup adds a loader to `.bashrc` or `.zshrc` once; on macOS it also configures
+Ctrl-W to use Bash-style word boundaries. Open a new shell to load the changes.
+Agent notification settings are merged into the agent configs; see below.
 
 ## Requirements
 
@@ -30,13 +45,27 @@ comments, are added only once, and leave the rest of the profile alone.
 - Neovim 0.11 or newer
 - tmux for `.tmux.conf`
 - A Nerd Font for plugin icons (optional)
-- Node.js/npm for Markdown Preview
+- Node.js/npm for Pyright (including `--no-gui`); Node.js also runs Copilot,
+  and the GUI profile uses Node.js/npm for Markdown Preview
+- `ripgrep` (`rg`) for Telescope live grep (`<leader>fg`)
+- A C compiler (`cc`, `gcc`, or `clang`) for Treesitter parsers
 - `codex` and `claude` on `PATH` for the agent workspace (optional)
 - `python3` to merge the Claude Code hook, and to read notification detail
-- Skim on macOS or Zathura on Linux for VimTeX PDF viewing (optional)
+- `curl` for agent notifications (optional)
+- A TeX distribution and `latexmk` for LaTeX compilation (optional)
+- Skim on macOS or Zathura on Linux for VimTeX PDF viewing (optional, GUI profile)
 
-Neovim plugins install themselves through lazy.nvim on first start, and
-language servers through Mason.
+`setup.sh` checks for Node.js/npm, ripgrep, and a C compiler at the end and
+reports missing tools without installing them or failing setup. Install or load
+missing tools so they are on `PATH` before starting Neovim.
+
+On first launch, lazy.nvim installs plugins and Mason installs language servers;
+allow these to finish before quitting. Use `nvim .` to open a project with the
+file tree and a shell terminal, or `nvim file` to edit a file directly.
+
+If a language server fails to install, open `:Mason` and `:MasonLog` for details.
+For the Pyright “npm not found” error, make `node` and `npm` available on `PATH`,
+restart Neovim, then run `:MasonInstall pyright`.
 
 ## Neovim plugins
 
@@ -54,7 +83,7 @@ language servers through Mason.
 | [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim) | Git signs in the gutter and hunk navigation |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | Add, change, and delete surrounding pairs |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | Auto-closes brackets and quotes |
-| [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) | The built-in terminals and the agent workspace |
+| [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) | Numbered shell terminals; agent panes use Neovim's native terminals |
 | [vimtex](https://github.com/lervag/vimtex) | LaTeX editing and PDF viewing |
 | [quarto-nvim](https://github.com/quarto-dev/quarto-nvim) | Quarto documents, with otter.nvim for embedded code |
 | [markdown-preview.nvim](https://github.com/iamcco/markdown-preview.nvim) | Live Markdown preview in the browser |
@@ -74,7 +103,7 @@ machine resolves plugin versions independently.
 | `<leader>c` / `<leader>a` | Focus or open the Codex / Claude Code workspace (they share the right-hand pane; the hidden one keeps running) |
 | `<leader>=` | Restore all workspace windows to their default sizes |
 | `<leader>o` | Focus or open the file tree |
-| `<leader>y` | Copy to the system clipboard |
+| `<leader>y` / `<leader>Y` | Copy a motion or selection / the current line to the system clipboard |
 | `<A-,>` / `<A-.>` | Go to the previous / next buffer |
 | `<A-1>` … `<A-9>` / `<A-0>` | Go to a numbered / the last buffer |
 | `<A-c>` | Close the current buffer, prompting for unsaved changes |
@@ -87,7 +116,8 @@ machine resolves plugin versions independently.
 | `<Esc><Esc>` | Clear search highlighting |
 
 After inspecting earlier terminal output, press `G` and then `i` to return to
-the live prompt.
+the live prompt. Quitting Neovim stops its shell and agent sessions.
+Clipboard copying uses OSC 52 and requires support in your local terminal.
 
 ## Agent notifications
 
@@ -95,23 +125,19 @@ the live prompt.
 when Codex or Claude Code finishes a turn or blocks on a permission prompt, so
 a run started over SSH can be left unattended.
 
-`setup.sh` wires it up and asks once for a topic. Press Enter to take the
-generated suggestion on the first machine, enter that same topic on every other
-machine, and subscribe to it in the ntfy app -- one subscription then catches
-every run wherever it was started. Answer `skip` to leave notifications silent;
-writing a topic into `~/.config/agent-notify/topic` enables them later. Topic
-names may use letters, numbers, underscores, and dashes, up to 64 characters.
+`setup.sh` asks once for a topic. Accept the generated topic or enter your own,
+use it on each machine, and subscribe in the ntfy app. Topics allow 1–64 letters,
+numbers, underscores, or dashes. Answer `skip` to leave notifications silent;
+edit `~/.config/agent-notify/topic` to enable or change them later, or empty the
+file to disable them.
 
-Anyone who knows the topic can read its whole history, so treat it as a
-password and keep it out of the repository. For that reason the notification
-body says only `Turn complete.` or `Waiting for approval.` by default. To send
-the agent's own words instead, create `~/.config/agent-notify/detail` on that
-machine (or set `AGENT_NOTIFY_DETAIL=1`; the file is more reliable, since hooks
-inherit their environment from a tmux server that may predate the export).
+Treat the topic as a password: anyone who knows it can read notifications.
+Messages say only `Turn complete.` or `Waiting for approval.` by default. To
+include agent output when available, create `~/.config/agent-notify/detail`
+or set `AGENT_NOTIFY_DETAIL=1`. The file also works with existing tmux sessions.
 
-Each notification is titled with the agent, the project directory, and the host
-name -- `Codex finished in STAR (isye-hps0401)` -- which is what tells two
-machines apart. Set `AGENT_NOTIFY_HOST` for a friendlier label, or
+Titles include the agent, project directory, and hostname. Set
+`AGENT_NOTIFY_HOST` for a friendlier host label, or
 `AGENT_NOTIFY_TOPIC` to override the topic file.
 
 After installing or changing the Codex hook, open `/hooks` in the Codex CLI,

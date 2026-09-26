@@ -1,5 +1,6 @@
 return {
     "iamcco/markdown-preview.nvim",
+    enabled = require("config.profile").gui,
     cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
     ft = { "markdown" },
     keys = {
