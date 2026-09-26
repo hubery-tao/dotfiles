@@ -42,22 +42,23 @@ Agent notification settings are merged into the agent configs; see below.
 ## Requirements
 
 - Bash and Git
-- Neovim 0.11 or newer
+- Neovim 0.12 or newer (required by nvim-treesitter's `main` branch)
 - tmux for `.tmux.conf`
 - A Nerd Font for plugin icons (optional)
 - Node.js/npm for Pyright (including `--no-gui`); Node.js also runs Copilot,
   and the GUI profile uses Node.js/npm for Markdown Preview
 - `ripgrep` (`rg`) for Telescope live grep (`<leader>fg`)
 - A C compiler (`cc`, `gcc`, or `clang`) for Treesitter parsers
+- `tree-sitter` CLI 0.26.1 or newer, plus `curl` and `tar`, for Treesitter parser installation
 - `codex` and `claude` on `PATH` for the agent workspace (optional)
 - `python3` to merge the Claude Code hook, and to read notification detail
 - `curl` for agent notifications (optional)
 - A TeX distribution and `latexmk` for LaTeX compilation (optional)
 - Skim on macOS or Zathura on Linux for VimTeX PDF viewing (optional, GUI profile)
 
-`setup.sh` checks for Node.js/npm, ripgrep, and a C compiler at the end and
-reports missing tools without installing them or failing setup. Install or load
-missing tools so they are on `PATH` before starting Neovim.
+`setup.sh` checks for Node.js/npm, ripgrep, tree-sitter, curl, tar, and a C compiler.
+It reports missing tools without installing them or failing setup. Install or
+load missing tools so they are on `PATH` before starting Neovim.
 
 On first launch, lazy.nvim installs plugins and Mason installs language servers;
 allow these to finish before quitting. Use `nvim .` to open a project with the

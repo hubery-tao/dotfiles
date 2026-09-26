@@ -361,11 +361,13 @@ check_nvim_dependencies() {
     local missing=0
 
     printf '\nChecking Neovim dependencies...\n'
-    for tool in node npm rg; do
+    for tool in node npm rg tree-sitter curl tar; do
         case "$tool" in
             node) purpose='Pyright, Copilot, and Markdown Preview (GUI profile)' ;;
             npm) purpose='Pyright installation and Markdown Preview (GUI profile)' ;;
             rg) purpose='Telescope live grep (<leader>fg)' ;;
+            tree-sitter) purpose='Treesitter parser builds (tree-sitter-cli >= 0.26.1)' ;;
+            curl|tar) purpose='Treesitter parser downloads' ;;
         esac
         if ! command -v "$tool" >/dev/null 2>&1; then
             printf 'Missing: %s -- needed for %s\n' "$tool" "$purpose"
@@ -384,7 +386,7 @@ check_nvim_dependencies() {
         printf 'Setup completed. Install or load the missing tools on PATH before starting Neovim.\n'
         printf 'Pyright needs Node.js/npm even with --no-gui. Nothing was installed automatically.\n'
     else
-        printf 'Node.js/npm, ripgrep, and a C compiler are available on PATH.\n'
+        printf 'Node.js/npm, ripgrep, tree-sitter, curl, tar, and a C compiler are available on PATH.\n'
     fi
 }
 
