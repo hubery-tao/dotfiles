@@ -104,6 +104,28 @@ All listing aliases enable colors using the platform's `ls` options.
 | `ta session` | Attach to a session (`tmux attach -t`) |
 | `tl` | List sessions (`tmux ls`) |
 
+### Slurm
+
+Each alias is enabled only when its underlying command is available on `PATH`.
+On systems with only Condor, these aliases are not defined.
+
+| Alias / usage | Command |
+| --- | --- |
+| `sq` | `squeue -u "$USER"` (your jobs) |
+| `sj JOBID` | `scontrol show job JOBID` (job details) |
+
+### HTCondor
+
+These aliases are enabled only when `condor_q` is available on `PATH`.
+
+| Alias / usage | Command |
+| --- | --- |
+| `cq` | `condor_q "$USER"` (your jobs) |
+| `cj JOBID` | `condor_q -long JOBID` (full details of a queued job, e.g. `cj 123.0`) |
+
+See the [HTCondor condor_q manual](https://htcondor.readthedocs.io/en/main/man-pages/condor_q.html)
+for query options.
+
 ### Archives
 
 | Alias / usage | Action |

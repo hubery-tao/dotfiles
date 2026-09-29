@@ -22,6 +22,18 @@ alias tn='tmux new -s'
 alias ta='tmux attach -t'
 alias tl='tmux ls'
 
+if command -v squeue >/dev/null 2>&1; then
+    alias sq='squeue -u "$USER"'
+fi
+if command -v scontrol >/dev/null 2>&1; then
+    alias sj='scontrol show job'
+fi
+
+if command -v condor_q >/dev/null 2>&1; then
+    alias cq='condor_q "$USER"'
+    alias cj='condor_q -long'
+fi
+
 alias untar='tar -xf'
 alias tarls='tar -tf'
 alias mktgz='tar -czf'
