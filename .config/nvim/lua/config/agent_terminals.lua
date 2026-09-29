@@ -82,6 +82,7 @@ function M.focus(name)
     -- running independently without stacking multiple right-hand panes.
     local win = M.visible_window()
     local layout_snapshot
+    local created_window = false
 
     if win then
         vim.api.nvim_set_current_win(win)
@@ -94,6 +95,7 @@ function M.focus(name)
         layout_snapshot = config.snapshot_layout()
         vim.cmd("botright vsplit")
         win = vim.api.nvim_get_current_win()
+        created_window = true
     end
 
     local created = false
@@ -111,17 +113,24 @@ function M.focus(name)
         vim.bo[bufnr].swapfile = false
 
         -- jobstart(..., { term = true }) attaches to the current buffer.
-        local job_id = vim.fn.jobstart(agent.command, { term = true })
-        if job_id <= 0 then
-            vim.api.nvim_buf_delete(bufnr, { force = true })
+        local ok, job_id = pcall(vim.fn.jobstart, agent.command, { term = true })
+        if not ok or job_id <= 0 then
             agent.bufnr = nil
-            if layout_snapshot and #vim.api.nvim_tabpage_list_wins(0) > 1 then
+            if created_window and vim.api.nvim_win_is_valid(win)
+                and #vim.api.nvim_tabpage_list_wins(0) > 1
+            then
                 vim.api.nvim_win_close(win, true)
-                config.restore_layout(layout_snapshot)
-            elseif vim.api.nvim_buf_is_valid(previous_buf) then
+            elseif vim.api.nvim_win_is_valid(win) and vim.api.nvim_buf_is_valid(previous_buf) then
                 vim.api.nvim_win_set_buf(win, previous_buf)
             end
-            vim.notify("Failed to start " .. agent.command[1], vim.log.levels.ERROR)
+            if vim.api.nvim_buf_is_valid(bufnr) then
+                vim.api.nvim_buf_delete(bufnr, { force = true })
+            end
+            if layout_snapshot then
+                config.restore_layout(layout_snapshot)
+            end
+            local detail = ok and ("jobstart returned " .. job_id) or tostring(job_id)
+            vim.notify("Failed to start " .. agent.command[1] .. ": " .. detail, vim.log.levels.ERROR)
             return
         end
 
