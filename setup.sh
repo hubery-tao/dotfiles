@@ -15,7 +15,7 @@ for arg in "$@"; do
             ;;
         -h|--help)
             printf 'Usage: %s [--no-gui | --gui]\n' "${0##*/}"
-            printf '  --no-gui  Disable Markdown Preview and the VimTeX PDF viewer.\n'
+            printf '  --no-gui  Disable the VimTeX PDF viewer; print Markdown Preview URLs.\n'
             printf '  --gui     Enable the full Neovim configuration.\n'
             printf 'Without either flag, keep the saved profile (default: gui).\n'
             exit 0
@@ -363,8 +363,8 @@ check_nvim_dependencies() {
     printf '\nChecking Neovim dependencies...\n'
     for tool in node npm rg tree-sitter curl tar; do
         case "$tool" in
-            node) purpose='Pyright, Copilot, and Markdown Preview (GUI profile)' ;;
-            npm) purpose='Pyright installation and Markdown Preview (GUI profile)' ;;
+            node) purpose='Pyright, Copilot, and Markdown Preview' ;;
+            npm) purpose='Pyright installation and Markdown Preview' ;;
             rg) purpose='Telescope live grep (<leader>fg)' ;;
             tree-sitter) purpose='Treesitter parser builds (tree-sitter-cli >= 0.26.1)' ;;
             curl|tar) purpose='Treesitter parser downloads' ;;

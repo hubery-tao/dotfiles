@@ -16,8 +16,9 @@ For a server or another environment without a desktop, use:
 ./setup.sh --no-gui
 ```
 
-`--no-gui` disables Markdown Preview and VimTeX's PDF viewer. LaTeX editing
-and compilation, LSP, terminals, and other plugins remain enabled.
+`--no-gui` disables VimTeX's PDF viewer. Markdown Preview remains available
+for viewing from another machine; it prints the preview URL instead of opening
+a browser. LaTeX editing and compilation, LSP, terminals, and other plugins remain enabled.
 
 Use `./setup.sh --gui` to restore the full configuration. Restart Neovim after
 switching profiles. The choice is saved per machine in
@@ -25,8 +26,15 @@ switching profiles. The choice is saved per machine in
 Without a flag, setup preserves the saved choice (default: `gui`); it does not
 detect SSH or display availability. Run `./setup.sh --help` for options.
 
-If Markdown Preview was already installed, `:Lazy clean` can remove its unused
-files after switching to `--no-gui` (review the cleanup list before confirming).
+Markdown Preview listens on `127.0.0.1:8090` in both profiles. SSH sessions
+also print the preview URL instead of opening a browser on the server. Only one
+Neovim preview server can use this port at a time.
+
+For access through Tailscale, run `tailscale serve --bg http://127.0.0.1:8090`
+once on the server (follow any HTTPS setup prompt). Start preview with `,mm`,
+then open the Serve HTTPS address in your local browser, appending the
+`/page/<number>` path from the preview URL. Serve persists across reboots;
+Neovim must remain running for the preview to work.
 
 Setup creates **absolute symlinks** for `.tmux.conf`, the Neovim configuration,
 executables in `.local/bin/`, and shell snippets. If you move this repository,
@@ -45,8 +53,8 @@ Agent notification settings are merged into the agent configs; see below.
 - Neovim 0.12 or newer (required by nvim-treesitter's `main` branch)
 - tmux for `.tmux.conf`
 - A Nerd Font for plugin icons (optional)
-- Node.js/npm for Pyright (including `--no-gui`); Node.js also runs Copilot,
-  and the GUI profile uses Node.js/npm for Markdown Preview
+- Node.js/npm for Pyright (including `--no-gui`); Node.js also runs Copilot
+  and can run Markdown Preview (which also supports a prebuilt binary)
 - `ripgrep` (`rg`) for Telescope live grep (`<leader>fg`)
 - A C compiler (`cc`, `gcc`, or `clang`) for Treesitter parsers
 - `tree-sitter` CLI 0.26.1 or newer, plus `curl` and `tar`, for Treesitter parser installation
